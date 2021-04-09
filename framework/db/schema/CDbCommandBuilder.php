@@ -370,7 +370,7 @@ class CDbCommandBuilder extends CComponent
 		$i=0;
 		foreach($data as $name=>$value)
 		{
-			if(($column=$table->getColumn($name))!==null)
+			if(($column=$table->getColumn($name))!==null && !empty($column->isVirtual))
 			{
 				if($value instanceof CDbExpression)
 				{
