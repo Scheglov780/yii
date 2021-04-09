@@ -169,11 +169,18 @@ class CPgsqlSchema extends CDbSchema
 SELECT
 	a.attname,
 	LOWER(format_type(a.atttypid, a.atttypmod)) AS type,
-	pg_get_expr(adbin, adrelid) AS adsrc,
+	pg_get_expr(ad.adbin, ad.adrelid) as adsrc, 
 	a.attnotnull,
 	a.atthasdef,
+	a.attgenerated,
+  coalesce(pg_get_expr(ad.adbin, ad.adrelid) ~ 'nextval',false) OR attidentity != '' AS is_autoinc,
+  pg_get_serial_sequence(quote_ident(d.nspname) || '.' || quote_ident(c.relname), a.attname) AS sequence_name,
 	pg_catalog.col_description(a.attrelid, a.attnum) AS comment
-FROM pg_attribute a LEFT JOIN pg_attrdef d ON a.attrelid = d.adrelid AND a.attnum = d.adnum
+FROM 
+    pg_class c
+    LEFT JOIN pg_attribute a ON a.attrelid = c.oid
+    LEFT JOIN pg_attrdef ad ON a.attrelid = ad.adrelid AND a.attnum = ad.adnum
+		LEFT JOIN pg_namespace d ON d.oid = c.relnamespace
 WHERE a.attnum > 0 AND NOT a.attisdropped
 	AND a.attrelid = (SELECT oid FROM pg_catalog.pg_class WHERE relname=:table
 		AND relnamespace = (SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = :schema))
@@ -186,20 +193,32 @@ EOD;
 		if(($columns=$command->queryAll())===array())
 			return false;
 
-		foreach($columns as $column)
+        foreach ($columns as $column) 
 		{
-			$c=$this->createColumn($column);
-			$table->columns[$c->name]=$c;
+            $c = $this->createColumn($column);
+            $table->columns[$c->name] = $c;
 
-			if(stripos($column['adsrc'],'nextval')===0 && preg_match('/nextval\([^\']*\'([^\']+)\'[^\)]*\)/i',$column['adsrc'],$matches))
-			{
-				if(strpos($matches[1],'.')!==false || $table->schemaName===self::DEFAULT_SCHEMA)
-					$this->_sequences[$table->rawName.'.'.$c->name]=$matches[1];
-				else
-					$this->_sequences[$table->rawName.'.'.$c->name]=$table->schemaName.'.'.$matches[1];
-				$c->autoIncrement=true;
-			}
-		}
+            if (stripos($column['adsrc'], 'nextval') === 0 && preg_match(
+                '/nextval\([^\']*\'([^\']+)\'[^\)]*\)/i',
+                $column['adsrc'],
+                $matches
+              )) {
+                if (strpos($matches[1], '.') !== false || $table->schemaName === self::DEFAULT_SCHEMA) {
+                    $this->_sequences[$table->rawName . '.' . $c->name] = $matches[1];
+                } else {
+                    $this->_sequences[$table->rawName . '.' . $c->name] = $table->schemaName . '.' . $matches[1];
+                }
+                $c->autoIncrement = true;
+            } elseif ($column['sequence_name'] && $column['is_autoinc']) {
+                if (strpos($column['sequence_name'], '.') !== false || $table->schemaName === self::DEFAULT_SCHEMA) {
+                    $this->_sequences[$table->rawName . '.' . $c->name] = $column['sequence_name'];
+                } else {
+                    $this->_sequences[$table->rawName . '.' . $c->name] = $table->schemaName . '.' . $column['sequence_name'];
+                }
+                $c->autoIncrement = true;
+            }
+
+        }
 		return true;
 	}
 
@@ -214,6 +233,8 @@ EOD;
 		$c->name=$column['attname'];
 		$c->rawName=$this->quoteColumnName($c->name);
 		$c->allowNull=!$column['attnotnull'];
+		//Alexys
+		$c->isVirtual = ($column['attgenerated'] ? true : false);
 		$c->isPrimaryKey=false;
 		$c->isForeignKey=false;
 		$c->comment=$column['comment']===null ? '' : $column['comment'];
