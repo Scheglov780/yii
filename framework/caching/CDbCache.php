@@ -181,7 +181,7 @@ EOD;
 	protected function getValue($key)
 	{
 		$time=time();
-		$sql="SELECT value FROM {$this->cacheTableName} WHERE id='$key' AND (expire=0 OR expire>$time)";
+		$sql="SELECT [[value]] FROM {$this->cacheTableName} WHERE id='$key' AND (expire=0 OR expire>$time)";
 		$db=$this->getDbConnection();
 		if($db->queryCachingDuration>0)
 		{
@@ -264,7 +264,7 @@ EOD;
 			$expire+=time();
 		else
 			$expire=0;
-		$sql="INSERT INTO {$this->cacheTableName} (id,expire,value) VALUES ('$key',$expire,:value)";
+		$sql="INSERT INTO {$this->cacheTableName} (id,expire,[[value]]) VALUES ('$key',$expire,:value)";
 		try
 		{
 			$command=$this->getDbConnection()->createCommand($sql);
