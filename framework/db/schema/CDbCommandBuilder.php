@@ -370,7 +370,8 @@ class CDbCommandBuilder extends CComponent
 		$i=0;
 		foreach($data as $name=>$value)
 		{
-			if(($column=$table->getColumn($name))!==null)
+			//Alexy fix for PG12 virtual generated always fields
+			if(($column=$table->getColumn($name))!==null && !empty($column->isVirtual))
 			{
 				if($value instanceof CDbExpression)
 				{
