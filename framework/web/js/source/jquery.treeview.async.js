@@ -3,7 +3,7 @@
  *
  * http://bassistance.de/jquery-plugins/jquery-plugin-treeview/
  *
- * Copyright (c) 2007 Jörn Zaefferer
+ * Copyright 2010 Jörn Zaefferer
  *
  * Dual licensed under the MIT and GPL licenses:
  *   http://www.opensource.org/licenses/mit-license.php
@@ -88,9 +88,12 @@ $.fn.treeview = function(settings) {
 	if (!settings.url) {
 		return proxied.apply(this, arguments);
 	}
+	if (!settings.root) {
+		settings.root = "source";
+	}
 	var container = this;
 	if (!container.children().size())
-		load(settings, "source", this, container);
+		load(settings, settings.root, this, container);
 	var userToggle = settings.toggle;
 	return proxied.call(this, $.extend({}, settings, {
 		collapsed: true,
